@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meeting Scheduler</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <!-- Login Page -->
+    <div id="loginPage" class="login-container">
+        <div class="login-box">
+            <h1>Meeting Scheduler Login</h1>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" required>
+                </div>
+                <button type="submit" class="btn-primary">Login</button>
+            </form>
+            <p class="register-link">Don't have an account? <a href="#" id="showRegister">Register</a></p>
+        </div>
+    </div>
+
+    <!-- Register Page -->
+    <div id="registerPage" class="login-container" style="display: none;">
+        <div class="login-box">
+            <h1>Create Account</h1>
+            <form id="registerForm">
+                <div class="form-group">
+                    <label for="newUsername">Username</label>
+                    <input type="text" id="newUsername" required>
+                </div>
+                <div class="form-group">
+                    <label for="newPassword">Password</label>
+                    <input type="password" id="newPassword" required>
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword">Confirm Password</label>
+                    <input type="password" id="confirmPassword" required>
+                </div>
+                <button type="submit" class="btn-primary">Register</button>
+            </form>
+            <p class="register-link">Already have an account? <a href="#" id="showLogin">Login</a></p>
+        </div>
+    </div>
+
+    <!-- Main App (Hidden by default) -->
+    <div id="mainApp" class="container" style="display: none;">
+        <header>
+            <div class="user-info">
+                <span id="currentUser">Welcome, User</span>
+                <button id="logoutBtn" class="btn-secondary">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+            <h1>Meeting Scheduler</h1>
+            <button id="addMeetingBtn" class="btn-primary">
+                <i class="fas fa-plus"></i> New Meeting
+            </button>
+        </header>
+
+        <div class="content">
+            <div class="sidebar">
+                <div class="online-users">
+                    <h3>Online Users</h3>
+                    <div id="onlineUsersList" class="user-list"></div>
+                </div>
+            </div>
+
+            <div class="main-content">
+                <div class="meetings-header">
+                    <h2>My Meetings</h2>
+                    <div class="meeting-actions">
+                        <button id="addMeetingBtn" class="btn-primary">Add Meeting</button>
+                        <button id="joinMeetingBtn" class="btn-primary">
+                            <i class="fas fa-sign-in-alt"></i> Join Meeting
+                        </button>
+                    </div>
+                </div>
+
+                <div id="meetingsContainer" class="meetings-container"></div>
+
+                <div id="meetingForm" class="meeting-form" style="display: none;">
+                    <h3>Add/Edit Meeting</h3>
+                    <form id="meetingDetails">
+                        <div class="form-group">
+                            <label for="title">Title</label>
+                            <input type="text" id="title" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="date">Date</label>
+                            <input type="date" id="date" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="time">Time</label>
+                            <input type="time" id="time" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="duration">Duration (minutes)</label>
+                            <input type="number" id="duration" min="15" step="15" value="30" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Participants</label>
+                            <div id="userList" class="user-list"></div>
+                        </div>
+                        <div class="form-group">
+                            <label>Meeting ID</label>
+                            <div class="meeting-id-display" id="meetingIdDisplay"></div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">Save</button>
+                            <button type="button" id="cancelBtn" class="btn-secondary">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Join Meeting Form -->
+                <div id="joinMeetingForm" class="meeting-form" style="display: none;">
+                    <h3>Join Meeting</h3>
+                    <form id="joinMeetingDetails">
+                        <div class="form-group">
+                            <label for="meetingId">Meeting ID</label>
+                            <input type="text" id="meetingId" placeholder="Enter meeting ID" required>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">Join</button>
+                            <button type="button" id="cancelJoinBtn" class="btn-secondary">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Video Call Interface -->
+        <div id="videoCallContainer" class="video-call-container" style="display: none;">
+            <div class="video-call-header">
+                <h2 id="callTitle">Meeting in Progress</h2>
+                <div class="call-participants">
+                    <span id="callWith">Calling with: </span>
+                </div>
+                <button id="endCallBtn" class="btn-secondary">
+                    <i class="fas fa-phone-slash"></i> End Call
+                </button>
+            </div>
+            <div class="video-grid">
+                <div class="video-container">
+                    <video id="localVideo" autoplay muted playsinline></video>
+                </div>
+                <div class="video-container">
+                    <video id="remoteVideo" autoplay playsinline></video>
+                </div>
+            </div>
+            <div class="video-controls">
+                <button id="toggleAudio" class="control-btn">
+                    <i class="fas fa-microphone"></i>
+                </button>
+                <button id="toggleVideo" class="control-btn">
+                    <i class="fas fa-video"></i>
+                </button>
+                <button id="toggleScreen" class="control-btn">
+                    <i class="fas fa-desktop"></i>
+                </button>
+                <button id="addUser" class="control-btn">
+                    <i class="fas fa-user-plus"></i>
+                </button>
+                <button id="hangupBtn" class="control-btn hangup">
+                    <i class="fas fa-phone-slash"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Incoming Call Modal -->
+    <div id="incomingCallModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3>Incoming Call</h3>
+            <p>From: <span id="incomingCallFrom"></span></p>
+            <div class="modal-actions">
+                <button id="acceptCallBtn" class="accept-btn">
+                    <i class="fas fa-phone"></i> Accept
+                </button>
+                <button id="rejectCallBtn" class="reject-btn">
+                    <i class="fas fa-phone-slash"></i> Reject
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html> 
