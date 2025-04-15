@@ -723,83 +723,43 @@ video {
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.5);
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
+    z-index: 1001;
 }
 
 .modal-content {
-    background-color: white;
-    padding: 20px;
+    background: white;
+    padding: 2rem;
     border-radius: 8px;
-    width: 400px;
-    max-width: 90%;
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
 }
 
-.modal-content h3 {
-    margin-bottom: 20px;
-    color: #333;
-}
-
-.modal-buttons {
+.modal-actions {
     display: flex;
-    justify-content: flex-end;
-    margin-top: 20px;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1.5rem;
 }
 
-.add-user-btn {
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    padding: 5px 10px;
-    border-radius: 4px;
-    cursor: pointer;
+.accept-btn {
+    background: #2ecc71;
 }
 
-.add-user-btn:hover {
-    background-color: #45a049;
+.accept-btn:hover {
+    background: #27ae60;
 }
 
-/* Video Grid Styles */
-.video-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 10px;
-    padding: 10px;
+.reject-btn {
+    background: #e74c3c;
 }
 
-.remote-video {
-    width: 100%;
-    max-height: 300px;
-    object-fit: cover;
-    border-radius: 8px;
-    background-color: #f0f0f0;
-}
-
-/* Control Button Styles */
-.control-btn {
-    background-color: #3498db;
-    color: white;
-    border: none;
-    padding: 10px;
-    border-radius: 50%;
-    cursor: pointer;
-    margin: 0 5px;
-    transition: background-color 0.3s;
-}
-
-.control-btn:hover {
-    background-color: #2980b9;
-}
-
-.control-btn.hangup {
-    background-color: #e74c3c;
-}
-
-.control-btn.hangup:hover {
-    background-color: #c0392b;
+.reject-btn:hover {
+    background: #c0392b;
 }
 
 /* Responsive Design */
@@ -815,33 +775,4 @@ video {
     .video-container:last-child {
         display: none;
     }
-}
-
-.meeting-actions {
-    display: flex;
-    gap: 1rem;
-}
-
-.meeting-id-display {
-    padding: 0.5rem;
-    background-color: #f8f9fa;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-family: monospace;
-    font-size: 1.2rem;
-    text-align: center;
-    margin-top: 0.5rem;
-}
-
-.meeting-card p strong {
-    color: #2c3e50;
-}
-
-.meeting-card .meeting-id {
-    background-color: #f8f9fa;
-    padding: 0.5rem;
-    border-radius: 4px;
-    font-family: monospace;
-    display: inline-block;
-    margin-top: 0.5rem;
 } 

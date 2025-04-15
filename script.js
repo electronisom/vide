@@ -33,12 +33,6 @@ const incomingCallModal = document.getElementById('incomingCallModal');
 const incomingCallFrom = document.getElementById('incomingCallFrom');
 const acceptCallBtn = document.getElementById('acceptCallBtn');
 const rejectCallBtn = document.getElementById('rejectCallBtn');
-const joinMeetingBtn = document.getElementById('joinMeetingBtn');
-const joinMeetingForm = document.getElementById('joinMeetingForm');
-const joinMeetingDetails = document.getElementById('joinMeetingDetails');
-const cancelJoinBtn = document.getElementById('cancelJoinBtn');
-const meetingIdInput = document.getElementById('meetingId');
-const meetingIdDisplay = document.getElementById('meetingIdDisplay');
 
 // State
 let users = JSON.parse(localStorage.getItem('users')) || [];
@@ -59,9 +53,6 @@ const configuration = {
         { urls: 'stun:stun.l.google.com:19302' }
     ]
 };
-
-// Store active peer connections
-const peerConnections = new Map();
 
 // Initialize WebSocket connection
 function initWebSocket() {
@@ -101,24 +92,8 @@ function initWebSocket() {
                 handleEndCall(data);
                 break;
 
-            case 'room-participants':
-                handleRoomParticipants(data);
-                break;
-
-            case 'offer':
-                await handleIncomingOffer(data);
-                break;
-
-            case 'answer':
-                await handleIncomingAnswer(data);
-                break;
-
-            case 'ice-candidate':
-                await handleIncomingIceCandidate(data);
-                break;
-
-            case 'add-user':
-                await handleIncomingAddUser(data);
+            case 'media-control':
+                handleMediaControl(data);
                 break;
         }
     };
@@ -175,57 +150,22 @@ function handleEndCall(data) {
     }
 }
 
-function endCall() {
-    // Remove event listeners
-    toggleAudio.removeEventListener('click', toggleMute);
-    toggleVideo.removeEventListener('click', toggleVideoState);
-    toggleScreen.removeEventListener('click', toggleScreenShare);
-    hangupBtn.removeEventListener('click', endCall);
-    endCallBtn.removeEventListener('click', endCall);
-
-    // Notify the other peer that the call is ending
-    if (ws && currentCall) {
-        const target = currentCall.from || currentCall.target;
-        if (target) {
-            ws.send(JSON.stringify({
-                type: 'end-call',
-                target: target
-            }));
-        }
+function handleMediaControl(data) {
+    const { control, enabled } = data;
+    switch (control) {
+        case 'audio':
+            const remoteAudio = remoteVideo.srcObject?.getAudioTracks()[0];
+            if (remoteAudio) {
+                remoteAudio.enabled = enabled;
+            }
+            break;
+        case 'video':
+            const remoteVideo = remoteVideo.srcObject?.getVideoTracks()[0];
+            if (remoteVideo) {
+                remoteVideo.enabled = enabled;
+            }
+            break;
     }
-
-    // Clean up local resources
-    if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-        localStream = null;
-    }
-    if (remoteStream) {
-        remoteStream.getTracks().forEach(track => track.stop());
-        remoteStream = null;
-    }
-    if (peerConnection) {
-        peerConnection.close();
-        peerConnection = null;
-    }
-    
-    // Reset video elements
-    localVideo.srcObject = null;
-    remoteVideo.srcObject = null;
-    
-    // Hide video call container and incoming call modal
-    videoCallContainer.style.display = 'none';
-    incomingCallModal.style.display = 'none';
-    
-    // Reset states
-    isMuted = false;
-    isVideoOff = false;
-    isScreenSharing = false;
-    currentCall = null;
-    
-    // Reset button states
-    toggleAudio.classList.remove('active');
-    toggleVideo.classList.remove('active');
-    toggleScreen.classList.remove('active');
 }
 
 // Event Listeners
@@ -300,52 +240,26 @@ acceptCallBtn.addEventListener('click', async () => {
 });
 
 rejectCallBtn.addEventListener('click', () => {
-    if (currentCall) {
-        endCall();
+    incomingCallModal.style.display = 'none';
+    if (ws) {
+        ws.send(JSON.stringify({
+            type: 'end-call',
+            target: currentCall.from
+        }));
     }
+    currentCall = null;
 });
 
 addMeetingBtn.addEventListener('click', () => {
     meetingForm.style.display = 'block';
-    joinMeetingForm.style.display = 'none';
     meetingDetails.reset();
     editingMeetingId = null;
-    
-    // Generate and display new meeting ID
-    const newMeetingId = generateMeetingId();
-    meetingIdDisplay.textContent = newMeetingId;
 });
 
 cancelBtn.addEventListener('click', () => {
     meetingForm.style.display = 'none';
     meetingDetails.reset();
     editingMeetingId = null;
-});
-
-joinMeetingBtn.addEventListener('click', () => {
-    meetingForm.style.display = 'none';
-    joinMeetingForm.style.display = 'block';
-});
-
-cancelJoinBtn.addEventListener('click', () => {
-    joinMeetingForm.style.display = 'none';
-    joinMeetingDetails.reset();
-});
-
-joinMeetingDetails.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const meetingId = meetingIdInput.value.trim();
-    
-    // Find the meeting with the given ID
-    const meeting = meetings.find(m => m.id === meetingId);
-    if (meeting) {
-        // Start a call with the meeting creator
-        startDirectCall(meeting.creator);
-        joinMeetingForm.style.display = 'none';
-        joinMeetingDetails.reset();
-    } else {
-        alert('Meeting not found. Please check the meeting ID.');
-    }
 });
 
 meetingDetails.addEventListener('submit', (e) => {
@@ -355,7 +269,7 @@ meetingDetails.addEventListener('submit', (e) => {
         .map(checkbox => checkbox.value);
     
     const meeting = {
-        id: editingMeetingId || meetingIdDisplay.textContent,
+        id: editingMeetingId || Date.now().toString(),
         title: document.getElementById('title').value,
         date: document.getElementById('date').value,
         time: document.getElementById('time').value,
@@ -425,13 +339,6 @@ async function startCall(targetUser, isAnswering = false) {
             }
         };
 
-        // Add event listeners for video controls
-        toggleAudio.addEventListener('click', toggleMute);
-        toggleVideo.addEventListener('click', toggleVideoState);
-        toggleScreen.addEventListener('click', toggleScreenShare);
-        hangupBtn.addEventListener('click', endCall);
-        endCallBtn.addEventListener('click', endCall);
-
         if (!isAnswering) {
             // Create and send offer
             const offer = await peerConnection.createOffer();
@@ -476,8 +383,10 @@ function toggleMute() {
             audioTrack.enabled = !audioTrack.enabled;
             isMuted = !isMuted;
             toggleAudio.classList.toggle('active', isMuted);
-            toggleAudio.innerHTML = `<i class="fas fa-${isMuted ? 'microphone-slash' : 'microphone'}"></i>`;
-            console.log('Audio track state:', audioTrack.enabled);
+            
+            // Update the icon
+            const icon = toggleAudio.querySelector('i');
+            icon.className = isMuted ? 'fas fa-microphone-slash' : 'fas fa-microphone';
         }
     }
 }
@@ -489,8 +398,10 @@ function toggleVideoState() {
             videoTrack.enabled = !videoTrack.enabled;
             isVideoOff = !isVideoOff;
             toggleVideo.classList.toggle('active', isVideoOff);
-            toggleVideo.innerHTML = `<i class="fas fa-${isVideoOff ? 'video-slash' : 'video'}"></i>`;
-            console.log('Video track state:', videoTrack.enabled);
+            
+            // Update the icon
+            const icon = toggleVideo.querySelector('i');
+            icon.className = isVideoOff ? 'fas fa-video-slash' : 'fas fa-video';
         }
     }
 }
@@ -498,48 +409,116 @@ function toggleVideoState() {
 async function toggleScreenShare() {
     try {
         if (!isScreenSharing) {
+            // Start screen sharing
             const screenStream = await navigator.mediaDevices.getDisplayMedia({
-                video: true,
+                video: {
+                    cursor: 'always'
+                },
                 audio: false
             });
+
+            // Handle the user canceling screen share through the browser UI
+            screenStream.getVideoTracks()[0].onended = async () => {
+                await switchToCamera();
+            };
             
             // Replace video track
             const videoTrack = screenStream.getVideoTracks()[0];
-            const sender = peerConnection.getSenders().find(s => s.track.kind === 'video');
-            if (sender) {
+            if (peerConnection) {
+                const sender = peerConnection.getSenders().find(s => s.track.kind === 'video');
                 await sender.replaceTrack(videoTrack);
             }
             
             // Update local video
+            if (localStream) {
+                const oldTrack = localStream.getVideoTracks()[0];
+                if (oldTrack) {
+                    oldTrack.stop();
+                    localStream.removeTrack(oldTrack);
+                }
+                localStream.addTrack(videoTrack);
+            }
             localVideo.srcObject = screenStream;
+            
             isScreenSharing = true;
             toggleScreen.classList.add('active');
             
-            // Handle when user stops sharing screen
-            videoTrack.onended = () => {
-                toggleScreenShare();
-            };
+            // Update the icon
+            const icon = toggleScreen.querySelector('i');
+            icon.className = 'fas fa-stop-circle';
         } else {
-            // Switch back to camera
-            const cameraStream = await navigator.mediaDevices.getUserMedia({
-                video: true,
-                audio: false
-            });
-            
-            const videoTrack = cameraStream.getVideoTracks()[0];
-            const sender = peerConnection.getSenders().find(s => s.track.kind === 'video');
-            if (sender) {
-                await sender.replaceTrack(videoTrack);
-            }
-            
-            localVideo.srcObject = cameraStream;
-            isScreenSharing = false;
-            toggleScreen.classList.remove('active');
+            // Stop screen sharing and switch back to camera
+            await switchToCamera();
         }
     } catch (error) {
         console.error('Error toggling screen share:', error);
-        alert('Error sharing screen. Please make sure you have the necessary permissions.');
+        alert('Failed to share screen. Please make sure you have granted the necessary permissions.');
     }
+}
+
+async function switchToCamera() {
+    try {
+        const cameraStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: localStream ? localStream.getAudioTracks().length > 0 : true
+        });
+        
+        const videoTrack = cameraStream.getVideoTracks()[0];
+        if (peerConnection) {
+            const sender = peerConnection.getSenders().find(s => s.track.kind === 'video');
+            await sender.replaceTrack(videoTrack);
+        }
+        
+        if (localStream) {
+            const oldTrack = localStream.getVideoTracks()[0];
+            if (oldTrack) {
+                oldTrack.stop();
+                localStream.removeTrack(oldTrack);
+            }
+            localStream.addTrack(videoTrack);
+        }
+        
+        localVideo.srcObject = cameraStream;
+        isScreenSharing = false;
+        toggleScreen.classList.remove('active');
+        
+        // Update the icon
+        const icon = toggleScreen.querySelector('i');
+        icon.className = 'fas fa-desktop';
+    } catch (error) {
+        console.error('Error switching to camera:', error);
+        alert('Failed to switch to camera. Please check your camera permissions.');
+    }
+}
+
+function endCall() {
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+    }
+    if (remoteStream) {
+        remoteStream.getTracks().forEach(track => track.stop());
+    }
+    if (peerConnection) {
+        peerConnection.close();
+    }
+    
+    localVideo.srcObject = null;
+    remoteVideo.srcObject = null;
+    videoCallContainer.style.display = 'none';
+    
+    // Reset states
+    localStream = null;
+    remoteStream = null;
+    peerConnection = null;
+    isMuted = false;
+    isVideoOff = false;
+    isScreenSharing = false;
+    currentCall = null;
+    
+    // Reset button states
+    toggleAudio.classList.remove('active');
+    toggleVideo.classList.remove('active');
+    toggleScreen.classList.remove('active');
 }
 
 function renderMeetings() {
@@ -564,7 +543,6 @@ function renderMeetings() {
     userMeetings.forEach(meeting => {
         const meetingCard = document.createElement('div');
         meetingCard.className = 'meeting-card';
-        meetingCard.dataset.meetingId = meeting.id;
         
         const date = new Date(`${meeting.date}T${meeting.time}`);
         const formattedDate = date.toLocaleDateString('en-US', {
@@ -580,13 +558,12 @@ function renderMeetings() {
 
         meetingCard.innerHTML = `
             <h3>${meeting.title}</h3>
-            <p><strong>Meeting ID:</strong> ${meeting.id}</p>
             <p><strong>Date:</strong> ${formattedDate}</p>
             <p><strong>Time:</strong> ${formattedTime}</p>
             <p><strong>Duration:</strong> ${meeting.duration} minutes</p>
             <p class="participants"><strong>Participants:</strong> ${meeting.participants.join(', ')}</p>
             <div class="actions">
-                <button class="video-btn" onclick="startMeeting('${meeting.id}')">
+                <button class="video-btn" onclick="startCall('${meeting.id}')">
                     <i class="fas fa-video"></i> Start Video Call
                 </button>
                 ${meeting.creator === currentUserData.username ? `
@@ -650,11 +627,6 @@ function renderUserList() {
     });
 }
 
-// Generate a random meeting ID
-function generateMeetingId() {
-    return Math.random().toString(36).substring(2, 8).toUpperCase();
-}
-
 // Initialize
 if (users.length === 0) {
     // Add some default users for testing
@@ -667,351 +639,59 @@ if (users.length === 0) {
 
 renderMeetings();
 
-// Handle room participants
-function handleRoomParticipants(data) {
-    const { roomId, participants } = data;
-    const meeting = meetings.find(m => m.id === roomId);
-    if (meeting) {
-        // Update UI to show participants
-        const meetingCard = document.querySelector(`[data-meeting-id="${roomId}"]`);
-        if (meetingCard) {
-            const participantsElement = meetingCard.querySelector('.participants');
-            if (participantsElement) {
-                participantsElement.textContent = `Participants: ${participants.join(', ')}`;
-            }
-        }
-    }
-}
-
-// Join a meeting room
-async function joinMeetingRoom(meetingId) {
-    if (ws) {
+// Video Call Event Listeners
+toggleAudio.addEventListener('click', () => {
+    toggleMute();
+    if (ws && currentCall) {
         ws.send(JSON.stringify({
-            type: 'join-room',
-            roomId: meetingId
+            type: 'media-control',
+            target: currentCall.from,
+            control: 'audio',
+            enabled: !isMuted
         }));
-    }
-}
-
-// Leave a meeting room
-function leaveMeetingRoom(meetingId) {
-    if (ws) {
-        ws.send(JSON.stringify({
-            type: 'leave-room',
-            roomId: meetingId
-        }));
-    }
-}
-
-// Start a meeting with multiple participants
-async function startMeeting(meetingId) {
-    try {
-        callTitle.textContent = `Meeting: ${meetingId}`;
-        callWith.textContent = 'Participants: Connecting...';
-        videoCallContainer.style.display = 'flex';
-
-        // Get local media stream
-        localStream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: true
-        });
-        localVideo.srcObject = localStream;
-
-        // Join the meeting room
-        await joinMeetingRoom(meetingId);
-
-        // Add event listeners for video controls
-        toggleAudio.addEventListener('click', toggleMute);
-        toggleVideo.addEventListener('click', toggleVideoState);
-        toggleScreen.addEventListener('click', toggleScreenShare);
-        hangupBtn.addEventListener('click', () => endMeeting(meetingId));
-        endCallBtn.addEventListener('click', () => endMeeting(meetingId));
-
-    } catch (error) {
-        console.error('Error starting meeting:', error);
-        alert('Error starting meeting. Please check your camera and microphone permissions.');
-        endMeeting(meetingId);
-    }
-}
-
-// End a meeting
-function endMeeting(meetingId) {
-    // Remove event listeners
-    toggleAudio.removeEventListener('click', toggleMute);
-    toggleVideo.removeEventListener('click', toggleVideoState);
-    toggleScreen.removeEventListener('click', toggleScreenShare);
-    hangupBtn.removeEventListener('click', endMeeting);
-    endCallBtn.removeEventListener('click', endMeeting);
-
-    // Close all peer connections
-    peerConnections.forEach((pc, userId) => {
-        pc.close();
-        peerConnections.delete(userId);
-    });
-
-    // Clean up local resources
-    if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-        localStream = null;
-    }
-
-    // Reset video elements
-    localVideo.srcObject = null;
-    remoteVideo.srcObject = null;
-
-    // Leave the meeting room
-    leaveMeetingRoom(meetingId);
-
-    // Hide video call container
-    videoCallContainer.style.display = 'none';
-
-    // Reset states
-    isMuted = false;
-    isVideoOff = false;
-    isScreenSharing = false;
-}
-
-// Handle incoming offer
-async function handleIncomingOffer(data) {
-    const { from, offer } = data;
-    
-    // Create new peer connection if it doesn't exist
-    if (!peerConnections.has(from)) {
-        const pc = new RTCPeerConnection(configuration);
-        peerConnections.set(from, pc);
-
-        // Add local stream to peer connection
-        if (localStream) {
-            localStream.getTracks().forEach(track => {
-                pc.addTrack(track, localStream);
-            });
-        }
-
-        // Handle remote stream
-        pc.ontrack = event => {
-            const remoteStream = event.streams[0];
-            remoteVideo.srcObject = remoteStream;
-        };
-
-        // Handle ICE candidates
-        pc.onicecandidate = event => {
-            if (event.candidate && ws) {
-                ws.send(JSON.stringify({
-                    type: 'ice-candidate',
-                    target: from,
-                    candidate: event.candidate
-                }));
-            }
-        };
-    }
-
-    const pc = peerConnections.get(from);
-    await pc.setRemoteDescription(new RTCSessionDescription(offer));
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-
-    if (ws) {
-        ws.send(JSON.stringify({
-            type: 'answer',
-            target: from,
-            answer: answer
-        }));
-    }
-}
-
-// Handle incoming answer
-async function handleIncomingAnswer(data) {
-    const { from, answer } = data;
-    const pc = peerConnections.get(from);
-    if (pc) {
-        await pc.setRemoteDescription(new RTCSessionDescription(answer));
-    }
-}
-
-// Handle incoming ICE candidate
-async function handleIncomingIceCandidate(data) {
-    const { from, candidate } = data;
-    const pc = peerConnections.get(from);
-    if (pc) {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
-    }
-}
-
-// Update the meeting card click handler
-document.addEventListener('click', async (e) => {
-    if (e.target.closest('.video-btn')) {
-        const meetingCard = e.target.closest('.meeting-card');
-        const meetingId = meetingCard.dataset.meetingId;
-        await startMeeting(meetingId);
     }
 });
 
-// Add event listener for the add user button
-document.getElementById('addUser').addEventListener('click', () => {
+toggleVideo.addEventListener('click', () => {
+    toggleVideoState();
+    if (ws && currentCall) {
+        ws.send(JSON.stringify({
+            type: 'media-control',
+            target: currentCall.from,
+            control: 'video',
+            enabled: !isVideoOff
+        }));
+    }
+});
+
+toggleScreen.addEventListener('click', async () => {
+    await toggleScreenShare();
+    if (ws && currentCall) {
+        ws.send(JSON.stringify({
+            type: 'media-control',
+            target: currentCall.from,
+            control: 'screen',
+            enabled: isScreenSharing
+        }));
+    }
+});
+
+hangupBtn.addEventListener('click', () => {
     if (currentCall) {
-        showAddUserModal();
-    }
-});
-
-// Function to show the add user modal
-function showAddUserModal() {
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    modal.innerHTML = `
-        <div class="modal-content">
-            <h3>Add User to Call</h3>
-            <div id="availableUsersList" class="user-list"></div>
-            <div class="modal-buttons">
-                <button id="cancelAddUser" class="btn">Cancel</button>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-
-    // Populate available users list
-    const availableUsersList = document.getElementById('availableUsersList');
-    onlineUsers.forEach(username => {
-        if (username !== currentUserData.username && !currentCall.participants.includes(username)) {
-            const userItem = document.createElement('div');
-            userItem.className = 'user-item';
-            userItem.innerHTML = `
-                <span>${username}</span>
-                <button class="add-user-btn" onclick="addUserToCall('${username}')">
-                    <i class="fas fa-plus"></i>
-                </button>
-            `;
-            availableUsersList.appendChild(userItem);
-        }
-    });
-
-    // Close modal when clicking cancel
-    document.getElementById('cancelAddUser').addEventListener('click', () => {
-        modal.remove();
-    });
-}
-
-// Function to add a user to the current call
-async function addUserToCall(username) {
-    try {
-        // Create a new peer connection for the added user
-        const pc = new RTCPeerConnection(configuration);
-        peerConnections.set(username, pc);
-
-        // Add local stream to the new peer connection
-        if (localStream) {
-            localStream.getTracks().forEach(track => {
-                pc.addTrack(track, localStream);
-            });
-        }
-
-        // Handle remote stream
-        pc.ontrack = event => {
-            const remoteStream = event.streams[0];
-            // Create a new video element for the added user
-            const newVideo = document.createElement('video');
-            newVideo.autoplay = true;
-            newVideo.playsInline = true;
-            newVideo.srcObject = remoteStream;
-            newVideo.className = 'remote-video';
-            document.querySelector('.video-grid').appendChild(newVideo);
-        };
-
-        // Handle ICE candidates
-        pc.onicecandidate = event => {
-            if (event.candidate && ws) {
-                ws.send(JSON.stringify({
-                    type: 'ice-candidate',
-                    target: username,
-                    candidate: event.candidate
-                }));
-            }
-        };
-
-        // Create and send offer
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-
-        if (ws) {
-            ws.send(JSON.stringify({
-                type: 'add-user',
-                target: username,
-                offer: offer,
-                roomId: currentCall.roomId
-            }));
-        }
-
-        // Update UI
-        const modal = document.querySelector('.modal');
-        if (modal) {
-            modal.remove();
-        }
-
-    } catch (error) {
-        console.error('Error adding user to call:', error);
-        alert('Error adding user to call. Please try again.');
-    }
-}
-
-// Handle incoming add-user request
-async function handleIncomingAddUser(data) {
-    const { from, offer, roomId } = data;
-    
-    // Create new peer connection
-    const pc = new RTCPeerConnection(configuration);
-    peerConnections.set(from, pc);
-
-    // Add local stream to peer connection
-    if (localStream) {
-        localStream.getTracks().forEach(track => {
-            pc.addTrack(track, localStream);
-        });
-    }
-
-    // Handle remote stream
-    pc.ontrack = event => {
-        const remoteStream = event.streams[0];
-        const newVideo = document.createElement('video');
-        newVideo.autoplay = true;
-        newVideo.playsInline = true;
-        newVideo.srcObject = remoteStream;
-        newVideo.className = 'remote-video';
-        document.querySelector('.video-grid').appendChild(newVideo);
-    };
-
-    // Handle ICE candidates
-    pc.onicecandidate = event => {
-        if (event.candidate && ws) {
-            ws.send(JSON.stringify({
-                type: 'ice-candidate',
-                target: from,
-                candidate: event.candidate
-            }));
-        }
-    };
-
-    // Set remote description and create answer
-    await pc.setRemoteDescription(new RTCSessionDescription(offer));
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-
-    if (ws) {
         ws.send(JSON.stringify({
-            type: 'answer',
-            target: from,
-            answer: answer
+            type: 'end-call',
+            target: currentCall.from
         }));
     }
-}
+    endCall();
+});
 
-// Update the WebSocket message handler to handle add-user messages
-ws.onmessage = async (event) => {
-    const data = JSON.parse(event.data);
-
-    switch (data.type) {
-        // ... existing cases ...
-        
-        case 'add-user':
-            await handleIncomingAddUser(data);
-            break;
+endCallBtn.addEventListener('click', () => {
+    if (currentCall) {
+        ws.send(JSON.stringify({
+            type: 'end-call',
+            target: currentCall.from
+        }));
     }
-}; 
+    endCall();
+}); 

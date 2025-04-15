@@ -76,12 +76,7 @@
             <div class="main-content">
                 <div class="meetings-header">
                     <h2>My Meetings</h2>
-                    <div class="meeting-actions">
-                        <button id="addMeetingBtn" class="btn-primary">Add Meeting</button>
-                        <button id="joinMeetingBtn" class="btn-primary">
-                            <i class="fas fa-sign-in-alt"></i> Join Meeting
-                        </button>
-                    </div>
+                    <button id="addMeetingBtn" class="btn-primary">Add Meeting</button>
                 </div>
 
                 <div id="meetingsContainer" class="meetings-container"></div>
@@ -109,28 +104,9 @@
                             <label>Participants</label>
                             <div id="userList" class="user-list"></div>
                         </div>
-                        <div class="form-group">
-                            <label>Meeting ID</label>
-                            <div class="meeting-id-display" id="meetingIdDisplay"></div>
-                        </div>
                         <div class="form-actions">
                             <button type="submit" class="btn-primary">Save</button>
                             <button type="button" id="cancelBtn" class="btn-secondary">Cancel</button>
-                        </div>
-                    </form>
-                </div>
-
-                <!-- Join Meeting Form -->
-                <div id="joinMeetingForm" class="meeting-form" style="display: none;">
-                    <h3>Join Meeting</h3>
-                    <form id="joinMeetingDetails">
-                        <div class="form-group">
-                            <label for="meetingId">Meeting ID</label>
-                            <input type="text" id="meetingId" placeholder="Enter meeting ID" required>
-                        </div>
-                        <div class="form-actions">
-                            <button type="submit" class="btn-primary">Join</button>
-                            <button type="button" id="cancelJoinBtn" class="btn-secondary">Cancel</button>
                         </div>
                     </form>
                 </div>
@@ -151,25 +127,33 @@
             <div class="video-grid">
                 <div class="video-container">
                     <video id="localVideo" autoplay muted playsinline></video>
+                    <div class="video-controls">
+                        <button id="toggleVideo" class="control-btn">
+                            <i class="fas fa-video"></i>
+                        </button>
+                        <button id="toggleAudio" class="control-btn">
+                            <i class="fas fa-microphone"></i>
+                        </button>
+                        <button id="toggleScreen" class="control-btn">
+                            <i class="fas fa-desktop"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="video-container">
                     <video id="remoteVideo" autoplay playsinline></video>
                 </div>
             </div>
-            <div class="video-controls">
-                <button id="toggleAudio" class="control-btn">
+            <div class="call-controls">
+                <button id="muteBtn" class="control-btn">
                     <i class="fas fa-microphone"></i>
                 </button>
-                <button id="toggleVideo" class="control-btn">
+                <button id="videoBtn" class="control-btn">
                     <i class="fas fa-video"></i>
                 </button>
-                <button id="toggleScreen" class="control-btn">
+                <button id="screenBtn" class="control-btn">
                     <i class="fas fa-desktop"></i>
                 </button>
-                <button id="addUser" class="control-btn">
-                    <i class="fas fa-user-plus"></i>
-                </button>
-                <button id="hangupBtn" class="control-btn hangup">
+                <button id="hangupBtn" class="control-btn danger">
                     <i class="fas fa-phone-slash"></i>
                 </button>
             </div>

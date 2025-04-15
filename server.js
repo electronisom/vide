@@ -9,13 +9,8 @@ const wss = new WebSocket.Server({ server });
 // Store connected users
 const users = new Map();
 
-// Store active rooms and their participants
-const rooms = new Map();
-
-// Handle WebSocket connections
 wss.on('connection', (ws) => {
     let currentUser = null;
-    let currentRoom = null;
 
     ws.on('message', (message) => {
         const data = JSON.parse(message);
@@ -34,71 +29,63 @@ wss.on('connection', (ws) => {
 
                 currentUser = data.username;
                 users.set(data.username, ws);
-                broadcastUserList();
+
+                // Notify all users about the new user
+                broadcast({
+                    type: 'userList',
+                    users: Array.from(users.keys())
+                });
+
+                ws.send(JSON.stringify({
+                    type: 'login',
+                    success: true
+                }));
                 break;
 
-            case 'join-room':
-                if (!rooms.has(data.roomId)) {
-                    rooms.set(data.roomId, new Set());
+            case 'call':
+                // Handle call request
+                const targetUser = users.get(data.target);
+                if (targetUser) {
+                    targetUser.send(JSON.stringify({
+                        type: 'call',
+                        from: currentUser,
+                        offer: data.offer
+                    }));
                 }
-                currentRoom = data.roomId;
-                rooms.get(data.roomId).add(currentUser);
-                broadcastRoomParticipants(data.roomId);
                 break;
 
-            case 'leave-room':
-                if (currentRoom && rooms.has(currentRoom)) {
-                    rooms.get(currentRoom).delete(currentUser);
-                    broadcastRoomParticipants(currentRoom);
-                    if (rooms.get(currentRoom).size === 0) {
-                        rooms.delete(currentRoom);
-                    }
-                }
-                break;
-
-            case 'offer':
             case 'answer':
+                // Handle call answer
+                const caller = users.get(data.target);
+                if (caller) {
+                    caller.send(JSON.stringify({
+                        type: 'answer',
+                        from: currentUser,
+                        answer: data.answer
+                    }));
+                }
+                break;
+
             case 'ice-candidate':
-                if (data.target) {
-                    const targetWs = users.get(data.target);
-                    if (targetWs) {
-                        targetWs.send(JSON.stringify(data));
-                    }
-                } else if (currentRoom && rooms.has(currentRoom)) {
-                    // Broadcast to all participants in the room except sender
-                    rooms.get(currentRoom).forEach(participant => {
-                        if (participant !== currentUser) {
-                            const participantWs = users.get(participant);
-                            if (participantWs) {
-                                participantWs.send(JSON.stringify({
-                                    ...data,
-                                    from: currentUser
-                                }));
-                            }
-                        }
-                    });
+                // Handle ICE candidate
+                const peer = users.get(data.target);
+                if (peer) {
+                    peer.send(JSON.stringify({
+                        type: 'ice-candidate',
+                        from: currentUser,
+                        candidate: data.candidate
+                    }));
                 }
                 break;
 
             case 'end-call':
-                if (data.target) {
-                    const targetWs = users.get(data.target);
-                    if (targetWs) {
-                        targetWs.send(JSON.stringify(data));
-                    }
-                } else if (currentRoom && rooms.has(currentRoom)) {
-                    // Broadcast end call to all participants
-                    rooms.get(currentRoom).forEach(participant => {
-                        if (participant !== currentUser) {
-                            const participantWs = users.get(participant);
-                            if (participantWs) {
-                                participantWs.send(JSON.stringify({
-                                    ...data,
-                                    from: currentUser
-                                }));
-                            }
-                        }
-                    });
+                // Handle call end
+                const peerUser = users.get(data.target);
+                if (peerUser) {
+                    peerUser.send(JSON.stringify({
+                        type: 'end-call',
+                        from: currentUser
+                    }));
                 }
                 break;
         }
@@ -107,40 +94,13 @@ wss.on('connection', (ws) => {
     ws.on('close', () => {
         if (currentUser) {
             users.delete(currentUser);
-            if (currentRoom && rooms.has(currentRoom)) {
-                rooms.get(currentRoom).delete(currentUser);
-                broadcastRoomParticipants(currentRoom);
-                if (rooms.get(currentRoom).size === 0) {
-                    rooms.delete(currentRoom);
-                }
-            }
-            broadcastUserList();
+            broadcast({
+                type: 'userList',
+                users: Array.from(users.keys())
+            });
         }
     });
 });
-
-function broadcastUserList() {
-    broadcast({
-        type: 'userList',
-        users: Array.from(users.keys())
-    });
-}
-
-function broadcastRoomParticipants(roomId) {
-    if (rooms.has(roomId)) {
-        const participants = Array.from(rooms.get(roomId));
-        rooms.get(roomId).forEach(participant => {
-            const ws = users.get(participant);
-            if (ws) {
-                ws.send(JSON.stringify({
-                    type: 'room-participants',
-                    roomId,
-                    participants
-                }));
-            }
-        });
-    }
-}
 
 function broadcast(message) {
     wss.clients.forEach(client => {
